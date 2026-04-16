@@ -21,6 +21,7 @@ with open('transactions.csv', 'r') as file:
     # Remove rows with id, mcc or amount missing
     transactions = transactions.dropna(subset=['id', 'mcc', 'amount'])
     # Remove rows with amount equal to 0
+    transactions['amount'] = transactions['amount'].replace('[\\$,]', '', regex=True).astype(float)
     transactions = transactions[transactions['amount'] != 0]
     # Remove duplicates based on id, mcc and amount (Retain the last occurrence)
     transactions = transactions.drop_duplicates(subset=['id', 'mcc', 'amount'], keep='last')
@@ -50,7 +51,7 @@ transactions['Business_Type'] = transactions['Business_Type'].fillna('Unknown')
 transactions['Fraud_Status'] = transactions['Fraud_Status'].fillna('Unknown')
 
 # Based on amount, represent credit with credit_debit column (Example: $14.57 = credit, $-77.00 = debit)
-transactions['amount'] = transactions['amount'].replace('[\\$,]', '', regex=True).astype(float)
+# transactions['amount'] = transactions['amount'].replace('[\\$,]', '', regex=True).astype(float)
 transactions['credit_debit'] = transactions['amount'].apply(lambda x: 'credit' if x >= 0 else 'debit')
 
 # Print summary (Transactions summary after merging)
@@ -92,7 +93,7 @@ debit_credit_by_fraud_count = transactions.groupby(['Fraud_Status', 'credit_debi
 # Top 5 Business types by Fraudulent Transactions Amount ; Display top 5 business types, and show its total fraudulent transactions $
 top_business_types_by_fraud_amount = transactions[transactions['Fraud_Status'] == 'Yes'].groupby('Business_Type')['amount'].sum().nlargest(5)
 
-# Visualisation - 5 Subplots
+# Visualisation - 5 Subplots  (TODO: Fix incorrect subplot layout and wrong data display)
 fig, axs = plt.subplots(2, 3, figsize=(18, 10))
 # Subplot 1: Average Transaction Amount ($) per Date
 axs[0, 0].bar(avg_amount_per_date.index, avg_amount_per_date.values, color='blue')
