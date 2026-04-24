@@ -6,7 +6,10 @@ Student 2: Chua YJ
 Title: Transaction analysis with Pandas and visualisation using Matplotlib
 '''
 import pandas as pd
+import numpy as np
 import matplotlib.pyplot as plt
+import matplotlib.dates as mdates
+from matplotlib.widgets import Button
 
 
 # Part 1: Loading dataset, data cleaning on transactions record
@@ -89,43 +92,336 @@ fraud_status_count = transactions['Fraud_Status'].value_counts()
 # Debit vs Credit Transaction by Fraud Status ; Display percentage and transactions count of each payment type for each fraud status
 debit_credit_by_fraud_distribution = transactions.groupby('Fraud_Status')['credit_debit'].value_counts(normalize=True) * 100
 debit_credit_by_fraud_count = transactions.groupby(['Fraud_Status', 'credit_debit']).size().unstack(fill_value=0)
+debit_credit_by_fraud_count = debit_credit_by_fraud_count.reindex(columns=['debit', 'credit'], fill_value=0)
 
 # Top 5 Business types by Fraudulent Transactions Amount ; Display top 5 business types, and show its total fraudulent transactions $
 top_business_types_by_fraud_amount = transactions[transactions['Fraud_Status'] == 'Yes'].groupby('Business_Type')['amount'].sum().nlargest(5)
 
-# Visualisation - 5 Subplots  (TODO: Fix incorrect subplot layout and wrong data display)
-fig, axs = plt.subplots(2, 3, figsize=(18, 10))
-# Subplot 1: Average Transaction Amount ($) per Date
-axs[0, 0].bar(avg_amount_per_date.index, avg_amount_per_date.values, color='blue')
-axs[0, 0].set_title('Average Transaction Amount ($) per Date')
-axs[0, 0].set_xlabel('Date')
-axs[0, 0].set_ylabel('Average Amount ($)')
-axs[0, 0].tick_params(axis='x', rotation=45)
 
-# Subplot 2: Fraud Rate (%) by Hour of Day
-axs[0, 1].bar(fraud_rate_by_hour.index, fraud_rate_by_hour.values, color='orange')
-axs[0, 1].set_title('Fraud Rate (%) by Hour of Day')
-axs[0, 1].set_xlabel('Hour of Day')
-axs[0, 1].set_ylabel('Fraud Rate (%)')
+# Part 4: Visualisation with Matplotlib
+# plt.style.use('seaborn-v0_8-whitegrid')
+class ChartViewer:
+    def __init__(
+        self,
+        avg_amount_per_date,
+        fraud_rate_by_hour,
+        fraud_status_distribution,
+        fraud_status_count,
+        debit_credit_by_fraud_count,
+        top_business_types_by_fraud_amount,
+        total_transactions,
+    ):
+        self.avg_amount_per_date = avg_amount_per_date
+        self.fraud_rate_by_hour = fraud_rate_by_hour
+        self.fraud_status_distribution = fraud_status_distribution
+        self.fraud_status_count = fraud_status_count
+        self.debit_credit_by_fraud_count = debit_credit_by_fraud_count
+        self.top_business_types_by_fraud_amount = top_business_types_by_fraud_amount
+        self.total_transactions = total_transactions
+        self.page_titles = [
+            'Average Transaction Amount ($) per Date',
+            'Fraud Rate (%) by Hour of Day',
+            'Overall Fraud Status Distribution',
+            'Debit vs Credit Transaction by Fraud Status',
+            'Top 5 Business Types by Fraudulent Transactions Amount',
+        ]
+        self.pages = [
+            self.draw_plot_1,
+            self.draw_plot_2,
+            self.draw_plot_3,
+            self.draw_plot_4,
+            self.draw_plot_5,
+        ]
+        self.current_page = 0
+        self.fig, self.ax = plt.subplots(figsize=(16, 9))
+        self.fig.subplots_adjust(bottom=0.2, top=0.9, left=0.08, right=0.96)
+        self.buttons = []
+        self.create_buttons()
+        self.fig.canvas.mpl_connect('key_press_event', self.handle_keypress)
+        self.render()
 
-# Subplot 3: Overall Fraud Status Distribution
-axs[0, 2].pie(fraud_status_distribution.values, labels=fraud_status_distribution.index, autopct='%1.1f%%', startangle=140)
-axs[0, 2].set_title('Overall Fraud Status Distribution')
+    def create_buttons(self):
+        button_layout = [
+            ('Back', (0.33, 0.05, 0.1, 0.06), self.prev_page),
+            ('Next', (0.45, 0.05, 0.1, 0.06), self.next_page),
+            ('Exit', (0.57, 0.05, 0.1, 0.06), self.exit_viewer),
+        ]
+        for label, axes_position, callback in button_layout:
+            button_ax = self.fig.add_axes(axes_position)
+            button = Button(button_ax, label)
+            button.on_clicked(callback)
+            self.buttons.append(button)
 
-# Subplot 4: Debit vs Credit Transaction by Fraud Status
-axs[1, 0].bar(debit_credit_by_fraud_count.index, debit_credit_by_fraud_count['debit'], label='Debit', color='red')
-axs[1, 0].bar(debit_credit_by_fraud_count.index, debit_credit_by_fraud_count['credit'], bottom=debit_credit_by_fraud_count['debit'], label='Credit', color='green')
-axs[1, 0].set_title('Debit vs Credit Transaction by Fraud Status')
-axs[1, 0].set_xlabel('Fraud Status')
-axs[1, 0].set_ylabel('Number of Transactions')
-axs[1, 0].legend()
+    def handle_keypress(self, event):
+        if event.key == 'right':
+            self.next_page(event)
+        elif event.key == 'left':
+            self.prev_page(event)
+        elif event.key in {'1', '2', '3', '4', '5'}:
+            self.go_to_page(int(event.key) - 1)
+        elif event.key in {'q', 'escape'}:
+            self.exit_viewer(event)
 
-# Subplot 5: Top 5 Business types by Fraudulent Transactions Amount
-top_business_types_by_fraud_amount.plot(kind='bar', ax=axs[1, 1], color='purple')
-axs[1, 1].set_title('Top 5 Business Types by Fraudulent Transactions Amount')
-axs[1, 1].set_xlabel('Business Type')
-axs[1, 1].set_ylabel('Total Fraudulent Amount ($)')
+    def render(self):
+        self.ax.clear()
+        self.ax.set_aspect('auto')
+        self.ax.spines['top'].set_visible(False)
+        self.ax.spines['right'].set_visible(False)
+        self.pages[self.current_page]()
+        # self.fig.suptitle(f'Chart {self.current_page + 1}/5: {self.page_titles[self.current_page]}', fontsize=14, y=0.98)
+        self.fig.canvas.draw_idle()
+        # self.fig.subplots_adjust(left=0.1, right=0.95)
 
-# Adjust layout and show the plots
-plt.tight_layout()
+    def go_to_page(self, page_index):
+        self.current_page = page_index
+        self.render()
+
+    def prev_page(self, _event):
+        self.current_page = (self.current_page - 1) % len(self.pages)
+        self.render()
+
+    def next_page(self, _event):
+        self.current_page = (self.current_page + 1) % len(self.pages)
+        self.render()
+
+    def exit_viewer(self, _event):
+        plt.close(self.fig)
+
+    def draw_plot_1(self):
+        x_values = list(self.avg_amount_per_date.index)
+        y_values = self.avg_amount_per_date.values.astype(float)
+        self.ax.plot(x_values, y_values, color='#8aa4d6', marker='o', linewidth=2.2, alpha=0.9)
+        for x_value, y_value in zip(x_values, y_values):
+            self.ax.annotate(
+                f'${y_value:,.2f}',
+                (x_value, y_value),
+                textcoords='offset points',
+                xytext=(0, 10),
+                ha='center',
+                fontsize=8,
+                fontweight='bold',
+                bbox={'boxstyle': 'round,pad=0.18', 'facecolor': 'white', 'edgecolor': 'none', 'alpha': 0.82},
+            )
+        y_min = y_values.min()
+        y_max = y_values.max()
+        y_range = max(y_max - y_min, 1)
+        self.ax.set_ylim(y_min - (0.35 * y_range), y_max + (0.35 * y_range))
+        self.ax.set_title('Average Transaction Amount ($) per Date')
+        self.ax.set_xlabel('Date')
+        self.ax.set_ylabel('Average Amount ($)')
+        self.ax.grid(axis='y', linestyle='--', alpha=0.35)
+        self.ax.xaxis.set_major_formatter(mdates.DateFormatter('%Y-%m-%d'))
+        self.ax.set_xticks(x_values)
+        self.ax.tick_params(axis='x', rotation=45, labelsize=6)
+        self.fig.subplots_adjust(bottom=0.27)
+
+    def draw_plot_2(self):
+        x_values = list(self.fraud_rate_by_hour.index)
+        y_values = self.fraud_rate_by_hour.values.astype(float)
+        self.ax.bar(x_values, y_values, color='darkorange')
+        max_value = max(y_values.max(), 1)
+        self.ax.set_ylim(-max_value * 1.2, max_value * 1.2)
+        self.ax.axhline(0, color='black', linewidth=1)
+        self.ax.spines['bottom'].set_position(('data', 0))
+        self.ax.spines['top'].set_visible(False)
+        self.ax.set_title('Fraud Rate (%) by Hour of Day')
+        self.ax.set_xlabel('Hour of Day')
+        self.ax.set_ylabel('Fraud Rate (%)')
+        self.ax.set_xticks(range(0, 24))
+        self.ax.set_xlim(-0.5, 23.5)
+        self.ax.tick_params(axis='x', rotation=0)
+        self.ax.grid(axis='y', linestyle='--', alpha=0.3)
+        for x_value, y_value in zip(x_values, y_values):
+            self.ax.annotate(
+                f'{y_value:.1f}%',
+                (x_value, y_value),
+                textcoords='offset points',
+                xytext=(0, 6),
+                ha='center',
+                fontsize=8,
+            )
+
+    def draw_plot_3(self):
+        labels = list(self.fraud_status_distribution.index)
+        values = self.fraud_status_distribution.values.astype(float)
+        total_count = int(self.fraud_status_count.sum())
+        color_map = {
+            'Yes': '#d98c8c',
+            'No': '#95c8a0',
+            'Unknown': '#b4bcc7',
+        }
+        colors = [color_map.get(label, '#b9c6d8') for label in labels]
+
+        explode = [0.08 if value < 1 else 0 for value in values]
+
+        def autopct_formatter(percent):
+            count = int(round((percent / 100) * total_count))
+            return f'{percent:.1f}% ({count} cases)'
+
+        wedges, text_labels, text_pcts = self.ax.pie( # type: ignore
+            values,
+            labels=labels,
+            colors=colors,
+            autopct=autopct_formatter,
+            startangle=140,
+            pctdistance=0.5,
+            labeldistance=0.55,
+            explode=explode,
+            wedgeprops={'linewidth': 0, 'edgecolor': 'none'},
+        )
+        for text in text_labels:
+            text.set_fontsize(10)
+            text.set_fontweight('bold')
+        for text in text_pcts:
+            text.set_fontsize(8)
+
+        small_slice_index = None
+        if len(values) > 0:
+            smallest_value = values.min()
+            if smallest_value < 1:
+                small_slice_index = int(values.argmin())
+
+        if small_slice_index is not None:
+            wedge = wedges[small_slice_index]
+            percent = values[small_slice_index]
+            count = int(self.fraud_status_count.loc[labels[small_slice_index]])
+            angle = (wedge.theta2 + wedge.theta1) / 2.0
+            x_pos = 1.04 * (np.cos(np.deg2rad(angle)))
+            y_pos = 1.04 * (np.sin(np.deg2rad(angle)))
+            label_x = 1.45 if x_pos >= 0 else -1.45
+            label_y = y_pos * 1.15
+            text_pcts[small_slice_index].set_visible(False)
+            self.ax.annotate(
+                f'{percent:.1f}% ({count} cases)',
+                xy=(x_pos, y_pos),
+                xytext=(label_x, label_y),
+                textcoords='data',
+                ha='left' if label_x > 0 else 'right',
+                va='center',
+                fontsize=9,
+                fontweight='bold',
+                arrowprops={'arrowstyle': '->', 'color': '#4b5563', 'lw': 1.1},
+            )
+
+        self.ax.set_title('Overall Fraud Status Distribution')
+        self.ax.axis('equal')
+
+    def draw_plot_4(self):
+        preferred_order = [status for status in ['Yes', 'No', 'Unknown'] if status in self.debit_credit_by_fraud_count.index]
+        remaining_status = [status for status in self.debit_credit_by_fraud_count.index if status not in preferred_order]
+        status_order = preferred_order + remaining_status
+        counts = self.debit_credit_by_fraud_count.reindex(status_order, fill_value=0).astype(float)
+        debit_values = counts['debit'].values
+        credit_values = counts['credit'].values
+        y_positions = list(range(len(status_order)))
+
+        if len(y_positions) == 0:
+            self.ax.text(0.5, 0.5, 'No data available', transform=self.ax.transAxes, ha='center', va='center')
+            self.ax.set_axis_off()
+            return
+
+        self.ax.barh(y_positions, debit_values, label='Debit', color='#c96b6b', edgecolor='none', height=0.58)
+        self.ax.barh(y_positions, credit_values, left=debit_values, label='Credit', color='#7fbc8f', edgecolor='none', height=0.58)
+
+        max_total = max((debit_values + credit_values).max(), 1)
+        self.ax.set_xlim(0, max_total * 1.58)
+
+        for idx, status in enumerate(status_order):
+            debit_count = int(counts.loc[status, 'debit'])
+            credit_count = int(counts.loc[status, 'credit'])
+            total_count = debit_count + credit_count
+
+            if debit_count > 0:
+                debit_pct = (debit_count / self.total_transactions) * 100
+
+                self.ax.text(
+                    debit_count / 2,
+                    idx,
+                    f'{debit_count} cases ({debit_pct:.1f}%)',
+                    va='center',
+                    ha='left',
+                    fontsize=8,
+                    color='black',
+                )
+
+            if credit_count > 0:
+                credit_pct = (credit_count / self.total_transactions) * 100
+                self.ax.text(
+                    debit_count + (credit_count / 2),
+                    idx,
+                    f'{credit_count} cases ({credit_pct:.1f}%)',
+                    va='center',
+                    ha='left',
+                    fontsize=8,
+                    color='black',
+                )
+
+            # total_pct = (total_count / self.total_transactions) * 100
+            # self.ax.text(
+            #     total_count + (max_total * 0.02),
+            #     idx,
+            #     f'{total_count} cases ({total_pct:.1f}%)',
+            #     va='center',
+            #     ha='left',
+            #     fontsize=9,
+            #     fontweight='bold',
+            #     color='#1f2937',
+            # )
+
+        self.ax.set_yticks(y_positions)
+        self.ax.set_yticklabels(status_order)
+        self.ax.invert_yaxis()
+        self.ax.set_title('Debit vs Credit Transaction by Fraud Status')
+        self.ax.set_xlabel('Number of Transactions')
+        self.ax.set_ylabel('Fraud Status')
+        self.ax.legend(loc='lower right')
+        self.ax.grid(axis='x', linestyle='--', alpha=0.35)
+
+    def draw_plot_5(self):
+        series = self.top_business_types_by_fraud_amount.sort_values(ascending=True)
+        if series.empty:
+            self.ax.text(0.5, 0.5, 'No fraudulent transactions found', transform=self.ax.transAxes, ha='center', va='center')
+            self.ax.set_axis_off()
+            return
+
+        y_positions = list(range(len(series.index)))
+        values = series.values.astype(float)
+        self.ax.barh(y_positions, values, color='#8d9ccf', edgecolor='none', height=0.6)
+        max_abs_value = max(abs(values).max(), 1)
+        self.ax.set_xlim(min(0, values.min() * 1.2), max(0, values.max() * 1.2))
+        self.ax.axvline(0, color='#4b5563', linewidth=1)
+
+        for idx, amount in enumerate(values):
+            offset = max_abs_value * 0.025
+            label_x = amount + offset if amount >= 0 else amount - offset
+            self.ax.text(
+                label_x,
+                idx,
+                f'${amount:,.2f}',
+                va='center',
+                ha='left' if amount >= 0 else 'right',
+                fontsize=8,
+                fontweight='bold',
+                color='#1f2937',
+            )
+        
+        self.ax.set_yticks(y_positions)
+        self.ax.set_yticklabels(series.index)
+        self.ax.tick_params(axis='y', labelsize=8) # Replace 12 with desired size
+        self.ax.invert_yaxis()
+        self.ax.set_title('Top 5 Business Types by Fraudulent Transactions Amount')
+        self.ax.set_xlabel('Total Fraudulent Amount ($)')
+        self.ax.set_ylabel('Business Type')
+        self.ax.grid(axis='x', linestyle='--', alpha=0.35)
+
+
+viewer = ChartViewer(
+    avg_amount_per_date=avg_amount_per_date,
+    fraud_rate_by_hour=fraud_rate_by_hour,
+    fraud_status_distribution=fraud_status_distribution,
+    fraud_status_count=fraud_status_count,
+    debit_credit_by_fraud_count=debit_credit_by_fraud_count,
+    top_business_types_by_fraud_amount=top_business_types_by_fraud_amount,
+    total_transactions=len(transactions),
+)
 plt.show()
