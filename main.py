@@ -335,18 +335,22 @@ class ChartViewer:
         max_total = max((debit_values + credit_values).max(), 1)
         self.ax.set_xlim(0, max_total * 1.58)
         offset = max_total * 0.01
+        threshold = max_total * 0.05
 
         for idx, status in enumerate(status_order):
             debit_count = int(counts.loc[status, 'debit'])
             credit_count = int(counts.loc[status, 'credit'])
 
+            needs_shift = (debit_count < threshold) or (credit_count < threshold)
+            v_shift = 0.05 if needs_shift else 0
+
             if debit_count > 0:
                 debit_pct = (debit_count / self.total_transactions) * 100
-                self.ax.text(debit_count + offset, idx - 0.05, f'Debit: {debit_count} ({debit_pct:.1f}%)', ha='left', va='center', fontsize=8, fontweight='bold')
+                self.ax.text(debit_count + offset, idx - v_shift, f'Debit: {debit_count} ({debit_pct:.1f}%)', ha='left', va='center', fontsize=8, fontweight='bold')
 
             if credit_count > 0:
                 credit_pct = (credit_count / self.total_transactions) * 100
-                self.ax.text(debit_count + credit_count + offset, idx + 0.05, f'Credit: {credit_count} ({credit_pct:.1f}%)', ha='left', va='center', fontsize=8, fontweight='bold')
+                self.ax.text(debit_count + credit_count + offset, idx + v_shift, f'Credit: {credit_count} ({credit_pct:.1f}%)', ha='left', va='center', fontsize=8, fontweight='bold')
 
         self.ax.set_yticks(y_positions)
         self.ax.set_yticklabels(status_order)
@@ -393,7 +397,6 @@ class ChartViewer:
         self.ax.set_xlabel('Total Fraudulent Amount ($)')
         self.ax.set_ylabel('Business Type')
         self.ax.grid(axis='x', linestyle='--', alpha=0.35)
-
 
 viewer = ChartViewer(
     avg_amount_per_date=avg_amount_per_date,
