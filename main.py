@@ -5,12 +5,14 @@ Student 2: Chua YJ
 
 Title: Transaction analysis with Pandas and visualisation using Matplotlib
 '''
+# %%
+import matplotlib  # Temp to use TkAgg for interactive
 import pandas as pd
 import numpy as np
 import matplotlib.pyplot as plt
 import matplotlib.dates as mdates
 from matplotlib.widgets import Button
-
+matplotlib.use('TkAgg')  # Temp to use button in Interactive Window 
 
 # Part 1: Loading dataset, data cleaning on transactions record
 with open('transactions.csv', 'r') as file:
@@ -98,8 +100,9 @@ debit_credit_by_fraud_count = debit_credit_by_fraud_count.reindex(columns=['debi
 top_business_types_by_fraud_amount = transactions[transactions['Fraud_Status'] == 'Yes'].groupby('Business_Type')['amount'].sum().nlargest(5)
 
 
+# %%
 # Part 4: Visualisation with Matplotlib
-# plt.style.use('seaborn-v0_8-whitegrid')
+plt.style.use('seaborn-v0_8-whitegrid')
 class ChartViewer:
     def __init__(
         self,
@@ -118,6 +121,7 @@ class ChartViewer:
         self.debit_credit_by_fraud_count = debit_credit_by_fraud_count
         self.top_business_types_by_fraud_amount = top_business_types_by_fraud_amount
         self.total_transactions = total_transactions
+        self.label_map = {'Yes': 'Fraud', 'No': 'Legit', 'Unknown': 'Unknown'}
         self.page_titles = [
             'Average Transaction Amount ($) per Date',
             'Fraud Rate (%) by Hour of Day',
@@ -167,10 +171,11 @@ class ChartViewer:
         self.ax.set_aspect('auto')
         self.ax.spines['top'].set_visible(False)
         self.ax.spines['right'].set_visible(False)
+        self.ax.grid(axis='x', linestyle='--', alpha=0.35)
         self.pages[self.current_page]()
         # self.fig.suptitle(f'Chart {self.current_page + 1}/5: {self.page_titles[self.current_page]}', fontsize=14, y=0.98)
         self.fig.canvas.draw_idle()
-        # self.fig.subplots_adjust(left=0.1, right=0.95)
+        self.fig.subplots_adjust(bottom=0.2, top=0.9, left=0.12, right=0.96)
 
     def go_to_page(self, page_index):
         self.current_page = page_index
@@ -242,15 +247,17 @@ class ChartViewer:
             )
 
     def draw_plot_3(self):
-        labels = list(self.fraud_status_distribution.index)
+        labels = [self.label_map.get(l, l) for l in self.fraud_status_distribution.index]
         values = self.fraud_status_distribution.values.astype(float)
-        total_count = int(self.fraud_status_count.sum())
+        mapped_counts = self.fraud_status_count.copy()
+        mapped_counts.index = mapped_counts.index.map(self.label_map)
+        total_count = int(mapped_counts.sum())
         color_map = {
-            'Yes': '#d98c8c',
-            'No': '#95c8a0',
+            'Fraud': '#d98c8c',
+            'Legit': '#95c8a0',
             'Unknown': '#b4bcc7',
         }
-        colors = [color_map.get(label, '#b9c6d8') for label in labels]
+        colors = [color_map.get(label, '#b9c6d8') for label in labels]  # type: ignore
 
         explode = [0.08 if value < 1 else 0 for value in values]
 
@@ -260,7 +267,7 @@ class ChartViewer:
 
         wedges, text_labels, text_pcts = self.ax.pie( # type: ignore
             values,
-            labels=labels,
+            labels=labels,  # type: ignore
             colors=colors,
             autopct=autopct_formatter,
             startangle=140,
@@ -284,7 +291,7 @@ class ChartViewer:
         if small_slice_index is not None:
             wedge = wedges[small_slice_index]
             percent = values[small_slice_index]
-            count = int(self.fraud_status_count.loc[labels[small_slice_index]])
+            count = int(mapped_counts.loc[labels[small_slice_index]])
             angle = (wedge.theta2 + wedge.theta1) / 2.0
             x_pos = 1.04 * (np.cos(np.deg2rad(angle)))
             y_pos = 1.04 * (np.sin(np.deg2rad(angle)))
@@ -307,10 +314,12 @@ class ChartViewer:
         self.ax.axis('equal')
 
     def draw_plot_4(self):
-        preferred_order = [status for status in ['Yes', 'No', 'Unknown'] if status in self.debit_credit_by_fraud_count.index]
-        remaining_status = [status for status in self.debit_credit_by_fraud_count.index if status not in preferred_order]
+        counts = self.debit_credit_by_fraud_count.copy()
+        counts.index = counts.index.map(self.label_map)
+        preferred_order = [status for status in ['Fraud', 'Legit', 'Unknown'] if status in counts.index]
+        remaining_status = [status for status in counts.index if status not in preferred_order]
         status_order = preferred_order + remaining_status
-        counts = self.debit_credit_by_fraud_count.reindex(status_order, fill_value=0).astype(float)
+        counts = counts.reindex(status_order, fill_value=0).astype(float)
         debit_values = counts['debit'].values
         credit_values = counts['credit'].values
         y_positions = list(range(len(status_order)))
@@ -320,53 +329,24 @@ class ChartViewer:
             self.ax.set_axis_off()
             return
 
-        self.ax.barh(y_positions, debit_values, label='Debit', color='#c96b6b', edgecolor='none', height=0.58)
-        self.ax.barh(y_positions, credit_values, left=debit_values, label='Credit', color='#7fbc8f', edgecolor='none', height=0.58)
+        self.ax.barh(y_positions, debit_values, label='Debit', color="#90dfff", edgecolor='none', height=0.58)
+        self.ax.barh(y_positions, credit_values, left=debit_values, label='Credit', color="#e2ff9f", edgecolor='none', height=0.58)
 
         max_total = max((debit_values + credit_values).max(), 1)
         self.ax.set_xlim(0, max_total * 1.58)
+        offset = max_total * 0.01
 
         for idx, status in enumerate(status_order):
             debit_count = int(counts.loc[status, 'debit'])
             credit_count = int(counts.loc[status, 'credit'])
-            total_count = debit_count + credit_count
 
             if debit_count > 0:
                 debit_pct = (debit_count / self.total_transactions) * 100
-
-                self.ax.text(
-                    debit_count / 2,
-                    idx,
-                    f'{debit_count} cases ({debit_pct:.1f}%)',
-                    va='center',
-                    ha='left',
-                    fontsize=8,
-                    color='black',
-                )
+                self.ax.text(debit_count + offset, idx - 0.05, f'Debit: {debit_count} ({debit_pct:.1f}%)', ha='left', va='center', fontsize=8, fontweight='bold')
 
             if credit_count > 0:
                 credit_pct = (credit_count / self.total_transactions) * 100
-                self.ax.text(
-                    debit_count + (credit_count / 2),
-                    idx,
-                    f'{credit_count} cases ({credit_pct:.1f}%)',
-                    va='center',
-                    ha='left',
-                    fontsize=8,
-                    color='black',
-                )
-
-            # total_pct = (total_count / self.total_transactions) * 100
-            # self.ax.text(
-            #     total_count + (max_total * 0.02),
-            #     idx,
-            #     f'{total_count} cases ({total_pct:.1f}%)',
-            #     va='center',
-            #     ha='left',
-            #     fontsize=9,
-            #     fontweight='bold',
-            #     color='#1f2937',
-            # )
+                self.ax.text(debit_count + credit_count + offset, idx + 0.05, f'Credit: {credit_count} ({credit_pct:.1f}%)', ha='left', va='center', fontsize=8, fontweight='bold')
 
         self.ax.set_yticks(y_positions)
         self.ax.set_yticklabels(status_order)
@@ -425,3 +405,5 @@ viewer = ChartViewer(
     total_transactions=len(transactions),
 )
 plt.show()
+
+# %%
