@@ -97,7 +97,8 @@ debit_credit_by_fraud_count = transactions.groupby(['Fraud_Status', 'credit_debi
 debit_credit_by_fraud_count = debit_credit_by_fraud_count.reindex(columns=['debit', 'credit'], fill_value=0)
 
 # Top 5 Business types by Fraudulent Transactions Amount ; Display top 5 business types, and show its total fraudulent transactions $
-top_business_types_by_fraud_amount = transactions[transactions['Fraud_Status'] == 'Yes'].groupby('Business_Type')['amount'].sum().nlargest(5)
+# Use .abs() to ensure both credit and debit amounts contribute to the total fraud volume
+top_business_types_by_fraud_amount = transactions[transactions['Fraud_Status'] == 'Yes'].assign(abs_amount=lambda x: x['amount'].abs()).groupby('Business_Type')['abs_amount'].sum().nlargest(5)
 
 
 # %%
@@ -335,7 +336,7 @@ class ChartViewer:
         max_total = max((debit_values + credit_values).max(), 1)
         self.ax.set_xlim(0, max_total * 1.58)
         offset = max_total * 0.01
-        threshold = max_total * 0.05
+        threshold = max_total * 0.01
 
         for idx, status in enumerate(status_order):
             debit_count = int(counts.loc[status, 'debit'])
@@ -392,7 +393,7 @@ class ChartViewer:
         self.ax.set_yticks(y_positions)
         self.ax.set_yticklabels(series.index)
         self.ax.tick_params(axis='y', labelsize=8) # Replace 12 with desired size
-        self.ax.invert_yaxis()
+        # self.ax.invert_yaxis()
         self.ax.set_title('Top 5 Business Types by Fraudulent Transactions Amount')
         self.ax.set_xlabel('Total Fraudulent Amount ($)')
         self.ax.set_ylabel('Business Type')
