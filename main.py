@@ -11,6 +11,7 @@ import pandas as pd
 import numpy as np
 import matplotlib.pyplot as plt
 import matplotlib.dates as mdates
+from matplotlib.lines import Line2D
 from matplotlib.widgets import Button
 matplotlib.use('TkAgg')  # Temp to use button in Interactive Window 
 
@@ -226,7 +227,7 @@ class ChartViewer:
         y_values = self.fraud_rate_by_hour.values.astype(float)
         self.ax.bar(x_values, y_values, color='darkorange')
         max_value = max(y_values.max(), 1)
-        self.ax.set_ylim(-max_value * 1.2, max_value * 1.2)
+        self.ax.set_ylim(-max_value * 0.2, max_value * 1.2)
         self.ax.axhline(0, color='black', linewidth=1)
         self.ax.spines['bottom'].set_position(('data', 0))
         self.ax.spines['top'].set_visible(False)
@@ -239,7 +240,7 @@ class ChartViewer:
         self.ax.grid(axis='y', linestyle='--', alpha=0.3)
         for x_value, y_value in zip(x_values, y_values):
             self.ax.annotate(
-                f'{y_value:.1f}%',
+                f'{y_value:.2f}%',
                 (x_value, y_value),
                 textcoords='offset points',
                 xytext=(0, 6),
@@ -254,8 +255,8 @@ class ChartViewer:
         mapped_counts.index = mapped_counts.index.map(self.label_map)
         total_count = int(mapped_counts.sum())
         color_map = {
-            'Fraud': '#d98c8c',
-            'Legit': '#95c8a0',
+            'Fraud': '#ff0000',
+            'Legit': '#00ff378a',
             'Unknown': '#b4bcc7',
         }
         colors = [color_map.get(label, '#b9c6d8') for label in labels]  # type: ignore
@@ -310,7 +311,13 @@ class ChartViewer:
                 fontweight='bold',
                 arrowprops={'arrowstyle': '->', 'color': '#4b5563', 'lw': 1.1},
             )
-
+        
+        # create a legend for the labels with custom colors
+        legend_labels = [f'{label}' for label in labels]
+        legend_colors = [color_map.get(label, '#b9c6d8') for label in labels]  # type: ignore
+        legend_patches = [Line2D([0], [0], marker='o', color='w', label=legend_labels[i], markerfacecolor=legend_colors[i], markersize=10) for i in range(len(labels))]
+        
+        self.ax.legend(handles=legend_patches, loc='upper right', title='Fraud Status')
         self.ax.set_title('Overall Fraud Status Distribution')
         self.ax.axis('equal')
 
@@ -341,16 +348,17 @@ class ChartViewer:
         for idx, status in enumerate(status_order):
             debit_count = int(counts.loc[status, 'debit'])
             credit_count = int(counts.loc[status, 'credit'])
+            total_status_count = debit_count + credit_count
 
             needs_shift = (debit_count < threshold) or (credit_count < threshold)
             v_shift = 0.05 if needs_shift else 0
 
             if debit_count > 0:
-                debit_pct = (debit_count / self.total_transactions) * 100
+                debit_pct = (debit_count / total_status_count) * 100
                 self.ax.text(debit_count + offset, idx - v_shift, f'Debit: {debit_count} ({debit_pct:.1f}%)', ha='left', va='center', fontsize=8, fontweight='bold')
 
             if credit_count > 0:
-                credit_pct = (credit_count / self.total_transactions) * 100
+                credit_pct = (credit_count / total_status_count) * 100
                 self.ax.text(debit_count + credit_count + offset, idx + v_shift, f'Credit: {credit_count} ({credit_pct:.1f}%)', ha='left', va='center', fontsize=8, fontweight='bold')
 
         self.ax.set_yticks(y_positions)
