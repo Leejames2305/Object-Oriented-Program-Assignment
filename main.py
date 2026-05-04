@@ -6,14 +6,12 @@ Student 2: Chua YJ
 Title: Transaction analysis with Pandas and visualisation using Matplotlib
 '''
 # %%
-import matplotlib  # Temp to use TkAgg for interactive
 import pandas as pd
 import numpy as np
 import matplotlib.pyplot as plt
 import matplotlib.dates as mdates
 from matplotlib.lines import Line2D
 from matplotlib.widgets import Button
-matplotlib.use('TkAgg')  # Temp to use button in Interactive Window 
 
 # Part 1: Loading dataset, data cleaning on transactions record
 with open('transactions.csv', 'r') as file:
@@ -140,13 +138,13 @@ class ChartViewer:
         ]
         self.current_page = 0
         self.fig, self.ax = plt.subplots(figsize=(16, 9))
-        self.fig.subplots_adjust(bottom=0.2, top=0.9, left=0.08, right=0.96)
+        self.fig.subplots_adjust(bottom=0.2, top=0.9, left=0.08, right=0.96)  # Adjusted to create more space for buttons and title
         self.buttons = []
         self.create_buttons()
-        self.fig.canvas.mpl_connect('key_press_event', self.handle_keypress)
+        self.fig.canvas.mpl_connect('key_press_event', self.handle_keypress)  # Key press for navigation
         self.render()
 
-    def create_buttons(self):
+    def create_buttons(self):  # Button layout and callback functions
         button_layout = [
             ('Back', (0.33, 0.05, 0.1, 0.06), self.prev_page),
             ('Next', (0.45, 0.05, 0.1, 0.06), self.next_page),
@@ -158,7 +156,7 @@ class ChartViewer:
             button.on_clicked(callback)
             self.buttons.append(button)
 
-    def handle_keypress(self, event):
+    def handle_keypress(self, event):  # Navigate with left/right arrows, 1-5 for specific charts, and q/escape to exit
         if event.key == 'right':
             self.next_page(event)
         elif event.key == 'left':
@@ -168,7 +166,7 @@ class ChartViewer:
         elif event.key in {'q', 'escape'}:
             self.exit_viewer(event)
 
-    def render(self):
+    def render(self):  # Clear the axes and redraw the current page's chart with consistent styling
         self.ax.clear()
         self.ax.set_aspect('auto')
         self.ax.spines['top'].set_visible(False)
@@ -197,7 +195,7 @@ class ChartViewer:
     def draw_plot_1(self):
         x_values = list(self.avg_amount_per_date.index)
         y_values = self.avg_amount_per_date.values.astype(float)
-        self.ax.plot(x_values, y_values, color='#8aa4d6', marker='o', linewidth=2.2, alpha=0.9)
+        self.ax.plot(x_values, y_values, color='#8aa4d6', marker='o', linewidth=2.2, alpha=0.9)  # Line plot with markers
         for x_value, y_value in zip(x_values, y_values):
             self.ax.annotate(
                 f'${y_value:,.2f}',
@@ -225,7 +223,7 @@ class ChartViewer:
     def draw_plot_2(self):
         x_values = list(self.fraud_rate_by_hour.index)
         y_values = self.fraud_rate_by_hour.values.astype(float)
-        self.ax.bar(x_values, y_values, color='darkorange')
+        self.ax.bar(x_values, y_values, color='darkorange')  # Bar plot for fraud rate by hour
         max_value = max(y_values.max(), 1)
         self.ax.set_ylim(-max_value * 0.2, max_value * 1.2)
         self.ax.axhline(0, color='black', linewidth=1)
@@ -251,8 +249,8 @@ class ChartViewer:
     def draw_plot_3(self):
         labels = [self.label_map.get(l, l) for l in self.fraud_status_distribution.index]
         values = self.fraud_status_distribution.values.astype(float)
-        mapped_counts = self.fraud_status_count.copy()
-        mapped_counts.index = mapped_counts.index.map(self.label_map)
+        mapped_counts = self.fraud_status_count.copy()  # Make a copy
+        mapped_counts.index = mapped_counts.index.map(self.label_map)  # Map the index to labels
         total_count = int(mapped_counts.sum())
         color_map = {
             'Fraud': '#ff0000',
@@ -261,9 +259,9 @@ class ChartViewer:
         }
         colors = [color_map.get(label, '#b9c6d8') for label in labels]  # type: ignore
 
-        explode = [0.08 if value < 1 else 0 for value in values]
+        explode = [0.08 if value < 1 else 0 for value in values]  # Explode small slices for better visibility
 
-        def autopct_formatter(percent):
+        def autopct_formatter(percent):  # Format to show percentage and count in the pie chart
             count = int(round((percent / 100) * total_count))
             return f'{percent:.1f}% ({count} cases)'
 
@@ -285,12 +283,12 @@ class ChartViewer:
             text.set_fontsize(8)
 
         small_slice_index = None
-        if len(values) > 0:
+        if len(values) > 0:  # Check if there are any values to avoid error when calling min() on an empty array
             smallest_value = values.min()
             if smallest_value < 1:
                 small_slice_index = int(values.argmin())
 
-        if small_slice_index is not None:
+        if small_slice_index is not None:  # Annotate to show percentage for exploded small slice outside the pie chart
             wedge = wedges[small_slice_index]
             percent = values[small_slice_index]
             count = int(mapped_counts.loc[labels[small_slice_index]])
@@ -337,6 +335,7 @@ class ChartViewer:
             self.ax.set_axis_off()
             return
 
+        # Create horizontal stacked bar chart
         self.ax.barh(y_positions, debit_values, label='Debit', color="#90dfff", edgecolor='none', height=0.58)
         self.ax.barh(y_positions, credit_values, left=debit_values, label='Credit', color="#e2ff9f", edgecolor='none', height=0.58)
 
@@ -350,9 +349,11 @@ class ChartViewer:
             credit_count = int(counts.loc[status, 'credit'])
             total_status_count = debit_count + credit_count
 
+            # If too small, shift the label slightly to avoid overlap with the bar
             needs_shift = (debit_count < threshold) or (credit_count < threshold)
             v_shift = 0.05 if needs_shift else 0
 
+            # Offset label position
             if debit_count > 0:
                 debit_pct = (debit_count / total_status_count) * 100
                 self.ax.text(debit_count + offset, idx - v_shift, f'Debit: {debit_count} ({debit_pct:.1f}%)', ha='left', va='center', fontsize=8, fontweight='bold')
@@ -400,8 +401,7 @@ class ChartViewer:
         
         self.ax.set_yticks(y_positions)
         self.ax.set_yticklabels(series.index)
-        self.ax.tick_params(axis='y', labelsize=8) # Replace 12 with desired size
-        # self.ax.invert_yaxis()
+        self.ax.tick_params(axis='y', labelsize=8)
         self.ax.set_title('Top 5 Business Types by Fraudulent Transactions Amount')
         self.ax.set_xlabel('Total Fraudulent Amount ($)')
         self.ax.set_ylabel('Business Type')
