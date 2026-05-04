@@ -14,7 +14,7 @@ from matplotlib.lines import Line2D
 from matplotlib.widgets import Button
 
 # Part 1: Loading dataset, data cleaning on transactions record
-with open('transactions.csv', 'r') as file:
+with open('transactions.csv', 'r') as file:  # change the file path if necessary
     transactions = pd.read_csv(file)
 
     # Print summary (Total transactions before cleaning)
@@ -38,10 +38,10 @@ with open('transactions.csv', 'r') as file:
 
 
 # Part 2: Data Merging and management
-with open('merchant_codes.csv', 'r') as file:
+with open('merchant_codes.csv', 'r') as file:  # change the file path if necessary
     merchant_codes = pd.read_csv(file)
 
-with open('fraud.csv', 'r') as file:
+with open('fraud.csv', 'r') as file:  # change the file path if necessary
     fraud = pd.read_csv(file)
 
 # Based on 'mcc', merge transactions with Business_Type (left join)
